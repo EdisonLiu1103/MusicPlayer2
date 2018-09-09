@@ -9,6 +9,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <service android:name="com.example.edison.musicplayer.MusicService"
+                 android:exported="true">
+
+        </service>
         <activity android:name=".MainActivity"
             android:theme="@android:style/Theme.Light">
             <intent-filter>

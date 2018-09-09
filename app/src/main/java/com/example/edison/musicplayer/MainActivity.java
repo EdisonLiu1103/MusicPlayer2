@@ -1,18 +1,19 @@
 package com.example.edison.musicplayer;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.media.MediaPlayer;
+import android.os.Bundle;
 import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
-import android.support.v7.widget.AppCompatImageButton;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
-import android.widget.SimpleCursorAdapter;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -36,6 +37,9 @@ public class MainActivity extends AppCompatActivity {
 
     //播放状态
     private int status;
+
+    //广播接收器
+    private StatusChangedReceiver receiver;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,8 +50,18 @@ public class MainActivity extends AppCompatActivity {
         initMusicList();
         initListView();
         checkMusicFile();
+        //绑定广播接收器，可以接收广播
+        bindStatusChangedReceiver();
     }
 
+    /**绑定广播接收器*/
+    private void bindStatusChangedReceiver(){
+        receiver = new StatusChangedReceiver();
+        IntentFilter filter = new IntentFilter(MusicService.BROADCAST_MUSICSERVICE_UPDATE_STATUS);
+        registerReceiver(receiver, filter);
+    }
+
+    /**获取显示组件*/
     private void findViews()
     {
         Pre_btn = findViewById(R.id.pre_btn);
@@ -200,6 +214,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onResume() {
+
+        super.onResume();
+        sendBroadcastOnCommand(MusicService.COMMAND_CHECK_IS_PLAYING);
+    }
+
     /**发送命令，控制音乐播放，参数定义在MusicService类中*/
     private void sendBroadcastOnCommand(int command){
         Intent intent = new Intent(MusicService.BROADCAST_MUSICSERVICE_CONTROL);
@@ -217,6 +238,37 @@ public class MainActivity extends AppCompatActivity {
             break;
         }
         sendBroadcast(intent);
+    }
+
+    /**内部类、用于播放器状态更新的接收广播*/
+    class StatusChangedReceiver extends BroadcastReceiver{
+        public void onReceive(Context context, Intent intent){
+            //获取播放器状态
+            status = intent.getIntExtra("status", -1);
+            switch(status){
+                case MusicService.STATUS_PLAYING:
+                    Play_btn.setBackgroundResource(R.drawable.pause);
+                    break;
+                case MusicService.STATUS_PAUSED:
+                case MusicService.STATUS_STOPPED:
+                    Play_btn.setBackgroundResource(R.drawable.play);
+                    break;
+                case MusicService.STATUS_COMPLETED:
+                    sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+
+    @Override
+    protected void onDestroy(){
+        if(status == MusicService.STATUS_STOPPED){
+            stopService(new Intent(this, MusicService.class));
+        }
+        super.onDestroy();
     }
 
     //媒体播放类

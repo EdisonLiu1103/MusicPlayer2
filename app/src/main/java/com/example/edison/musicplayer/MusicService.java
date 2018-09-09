@@ -4,15 +4,11 @@ import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.MediaPlayer;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.widget.Toast;
-
-import java.security.PublicKey;
-import java.security.spec.ECField;
-
-import static android.support.v4.media.session.MediaControllerCompatApi21.TransportControls.play;
 
 public class MusicService extends Service{
 
@@ -42,12 +38,46 @@ public class MusicService extends Service{
     private int number = 0;
     private int status;
 
+   @Override
+   public void onCreate(){
+       super.onCreate();
+       //绑定广播接收器，可以接收广播
+       bindCommandReceiver();
+       //Toast.makeText(this, "MusicService.onCreate()", Toast.LENGTH_SHORT).show();
+       status = MusicService.STATUS_STOPPED;
+   }
+
+
+   @Override
+   public void onDestroy(){
+      //释放播放器资源
+       if(player != null){
+           player.release();
+       }
+       super.onDestroy();
+
+   }
     //媒体播放类
     private MediaPlayer player = new MediaPlayer();
+
+    //广播接收器
+    private CommandReceiver receiver;
+
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    /**锁定广播接收器*/
+    private void bindCommandReceiver(){
+        receiver = new CommandReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                IntentFilter filter = new IntentFilter(BROADCAST_MUSICSERVICE_CONTROL);
+                registerReceiver(receiver, filter);
+            }
+        };
     }
 
     /**内部类，接收广播命令，并执行操作*/
@@ -77,12 +107,22 @@ public class MusicService extends Service{
                     resume();
                     break;
                 case COMMAND_CHECK_IS_PLAYING:
+                    if(player != null && player.isPlaying()){
+                        sendBroadcastOnStatusChanged(MusicService.STATUS_PLAYING);
+                    }
                     break;
                 case COMMAND_UNKNOWN:
                 default:
                     break;
             }
         }
+    }
+
+    /**发送广播，提醒转改改变了*/
+    private void sendBroadcastOnStatusChanged(int status){
+        Intent intent = new Intent(BROADCAST_MUSICSERVICE_UPDATE_STATUS);
+        intent.putExtra("status",status);
+        sendBroadcast(intent);
     }
 
     /**读取音乐文件*/
@@ -94,7 +134,21 @@ public class MusicService extends Service{
         }catch (Exception e){
             e.printStackTrace();
         }
+        //注册监听器
+        player.setOnCompletionListener(completionListener);
     }
+
+    //播放结束监听器
+   MediaPlayer.OnCompletionListener completionListener = new MediaPlayer.OnCompletionListener() {
+        @Override
+        public void onCompletion(MediaPlayer mediaPlayer) {
+            if(player.isLooping()){
+                replay();
+            }else{
+                sendBroadcastOnStatusChanged(MusicService.STATUS_COMPLETED);
+            }
+        }
+    };
 
     /**选择下一首*/
     private void moveNumberToNext(){
@@ -107,6 +161,17 @@ public class MusicService extends Service{
         }
     }
 
+    /**选择上一曲*/
+    private void moveNumberToPrevious(){
+        //判断是否达到了列表顶端
+        if(number == 0){
+            Toast.makeText(this, "已经达到列表顶端了", Toast.LENGTH_SHORT).show();
+        }else {
+            --number;
+            play(number);
+        }
+    }
+
     /**播放音乐*/
     private void play(int number){
         //停止当前播放
@@ -115,7 +180,8 @@ public class MusicService extends Service{
         }
         load(number);
         player.start();
-        status = MusicService.STATUS_PAUSED;
+        status = MusicService.STATUS_PLAYING;
+        sendBroadcastOnStatusChanged(MusicService.STATUS_PLAYING);
     }
 
     /**暂停音乐*/
@@ -123,6 +189,7 @@ public class MusicService extends Service{
         if(player.isPlaying()){
             player.pause();
             status = MusicService.STATUS_PAUSED;
+            sendBroadcastOnStatusChanged(MusicService.STATUS_PAUSED);
         }
     }
 
@@ -130,6 +197,8 @@ public class MusicService extends Service{
     private void stop(){
         if(status != MusicService.STATUS_STOPPED){
             player.stop();
+            status = MusicService.STATUS_STOPPED;
+            sendBroadcastOnStatusChanged(MusicService.STATUS_STOPPED);
         }
     }
 
