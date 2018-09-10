@@ -7,13 +7,18 @@ import android.content.IntentFilter;
 import android.database.Cursor;
 import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ImageButton;
 import android.widget.ListView;
+import android.widget.RelativeLayout;
+import android.widget.SeekBar;
 import android.widget.SimpleAdapter;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -28,6 +33,22 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton Pause_btn;
     private ImageButton Next_btn;
     private ListView list;
+    private TextView text_Current;
+    private TextView text_Duration;
+    private SeekBar seekBar;
+    private RelativeLayout root_Layout;
+
+    //更新进度条的Handler
+    private Handler seekBarHandler;
+
+    //当前歌曲的持续时间和当前位置，作用于进度条
+    private int duration;
+    private int time;
+
+    //进度条控制常量
+    private static final int PROGRESS_INCREASE = 0;
+    private static final int PROGRESS_PAUSE = 1;
+    private static final int PROGRESS_RESET = 2;
 
     //歌曲列表对象
     private ArrayList<Music> musicArrayList;
@@ -50,8 +71,13 @@ public class MainActivity extends AppCompatActivity {
         initMusicList();
         initListView();
         checkMusicFile();
+        duration = 0;
+        time = 0;
         //绑定广播接收器，可以接收广播
         bindStatusChangedReceiver();
+        initSeekBarHandler();
+        startService(new Intent(this, MusicService.class));
+        status = MusicService.COMMAND_STOP;
     }
 
     /**绑定广播接收器*/
@@ -68,7 +94,12 @@ public class MainActivity extends AppCompatActivity {
         Play_btn = findViewById(R.id.play_btn);
         Pause_btn = findViewById(R.id.pause_btn);
         Next_btn = findViewById(R.id.next_btn);
-        list = findViewById(R.id.listView1);
+        list = (ListView)findViewById(R.id.listView1);
+
+        seekBar = (SeekBar)findViewById(R.id.seekBar1);
+        text_Current = (TextView)findViewById(R.id.tv1);
+        text_Duration = (TextView)findViewById(R.id.tv2);
+        root_Layout = (RelativeLayout)findViewById(R.id.relativeLayout1);
     }
 
     private void registerListeners()
@@ -137,6 +168,33 @@ public class MainActivity extends AppCompatActivity {
                 /*play(number);
                 Play_btn.setBackgroundResource(R.drawable.play);*/
                 sendBroadcastOnCommand(MusicService.COMMAND_PLAY);
+            }
+        });
+
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                if(status != MusicService.STATUS_STOPPED){
+                    time = i;
+                    //更新文本
+                    text_Current.setText(formatTime(time));
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+               //进度条暂停移动
+                seekBarHandler.sendEmptyMessage(PROGRESS_PAUSE);
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                if(status == MusicService.STATUS_PLAYING){
+                    //发送广播给MusicService，执行跳转
+                    sendBroadcastOnCommand(MusicService.COMMAND_SEEK_TO);
+                    //进度条恢复移动
+                    seekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000);
+                }
             }
         });
     }
@@ -221,6 +279,52 @@ public class MainActivity extends AppCompatActivity {
         sendBroadcastOnCommand(MusicService.COMMAND_CHECK_IS_PLAYING);
     }
 
+    private void initSeekBarHandler(){
+        seekBarHandler = new Handler(){
+            public void handleMessage(Message msg){
+                super.handleMessage(msg);
+                switch (msg.what){
+                    case PROGRESS_INCREASE:
+                        if(seekBar.getProgress() < duration){
+                            //进度条前进1秒
+                            seekBar.setProgress(time);
+                            seekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000);
+                            //修改显示当前进度的文本
+                            text_Current.setText(formatTime(time));
+                            time += 1000;
+                        }
+                        break;
+                    case PROGRESS_PAUSE:
+                        seekBarHandler.removeMessages(PROGRESS_INCREASE);
+                        break;
+                    case PROGRESS_RESET:
+                        //重置进度条界面
+                        seekBarHandler.removeMessages(PROGRESS_INCREASE);
+                        seekBar.setProgress(0);
+                        text_Current.setText("00:00");
+                        break;
+                }
+            }
+        };
+    }
+
+    /**格式化：毫秒->"mm：ss"*/
+    private String formatTime(int msec){
+        int minute = (msec / 1000) / 60;
+        int second = (msec / 1000) % 60;
+        String minuteString;
+        String secondString = null;
+        if(minute < 10){
+            minuteString = "0" + minute;
+        }else{
+            minuteString ="" + minute;
+        }
+        if(second < 10){
+            secondString = "0" + second;
+        }
+        return minuteString + "：" + secondString;
+    }
+
     /**发送命令，控制音乐播放，参数定义在MusicService类中*/
     private void sendBroadcastOnCommand(int command){
         Intent intent = new Intent(MusicService.BROADCAST_MUSICSERVICE_CONTROL);
@@ -229,6 +333,9 @@ public class MainActivity extends AppCompatActivity {
         switch(command){
             case MusicService.COMMAND_PLAY:
                 intent.putExtra("number",number);
+                break;
+            case MusicService.COMMAND_SEEK_TO:
+                intent.putExtra("time",time);
                 break;
             case MusicService.COMMAND_PREVIOUS:
             case MusicService.COMMAND_NEXT:
@@ -247,14 +354,37 @@ public class MainActivity extends AppCompatActivity {
             status = intent.getIntExtra("status", -1);
             switch(status){
                 case MusicService.STATUS_PLAYING:
+                    seekBarHandler.removeMessages(PROGRESS_INCREASE);
+                    time = intent.getIntExtra("time", 0);
+                    duration = intent.getIntExtra("duration", 0);
+                    number = intent.getIntExtra("number", number);
+                    list.setSelection(number);
+                    seekBar.setProgress(time);
+                    seekBar.setMax(duration);
+                    seekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000);
+                    text_Duration.setText(formatTime(duration));
                     Play_btn.setBackgroundResource(R.drawable.pause);
                     break;
                 case MusicService.STATUS_PAUSED:
+                    seekBarHandler.sendEmptyMessage(PROGRESS_PAUSE);
+                    Play_btn.setBackgroundResource(R.drawable.play);
                 case MusicService.STATUS_STOPPED:
+                    time = 0;
+                    duration = 0;
+                    text_Current.setText(formatTime(time));
+                    text_Duration.setText(formatTime(duration));
+                    seekBarHandler.sendEmptyMessage(PROGRESS_RESET);
                     Play_btn.setBackgroundResource(R.drawable.play);
                     break;
                 case MusicService.STATUS_COMPLETED:
-                    sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                    number = intent.getIntExtra("number", 0);
+                    if(number == MusicList.getMusicList().size()-1)
+                        sendBroadcastOnCommand(MusicService.STATUS_STOPPED);
+                    else
+                        sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                    seekBarHandler.sendEmptyMessage(PROGRESS_RESET);
+                    //sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                    Play_btn.setBackgroundResource(R.drawable.play);
                     break;
                 default:
                     break;
@@ -269,6 +399,21 @@ public class MainActivity extends AppCompatActivity {
             stopService(new Intent(this, MusicService.class));
         }
         super.onDestroy();
+    }
+
+    /**设置Activity的主题，包括改变背景图片等*/
+    private void setTheme(String theme){
+        if("彩色".equals(theme)){
+            root_Layout.setBackgroundResource(R.drawable.color1);
+        }else if("彩色2".equals(theme)) {
+            root_Layout.setBackgroundResource(R.drawable.color2);
+        }else if ("彩色3".equals(theme)){
+            root_Layout.setBackgroundResource(R.drawable.color3);
+        }else if ("彩色4".equals(theme)){
+            root_Layout.setBackgroundResource(R.drawable.color4);
+        }else if ("彩色5".equals(theme)){
+            root_Layout.setBackgroundResource(R.drawable.color5);
+        }
     }
 
     //媒体播放类

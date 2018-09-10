@@ -4,4 +4,11 @@
     <string name="tip_reach_bottom">已经到达列表底端，现在播放第一首歌曲</string>
     <string name="no_music_file">没有找到音乐文件，请先添加音乐文件</string>
 
+
+    <string name = "theme">主题</string>
+    <string name="about">关于</string>
+    <string name="about2">简介:It's a simple music app to play the musics, change the themes, and slide the seekbar:-)</string>
+    <string name="quit">退出</string>
+    <string name="quit_message">Sure to quit?</string>
+
 </resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <String-array name ="true">
+        <item>彩色1</item>
+        <item>彩色2</item>
+        <item>彩色3</item>
+        <item>彩色4</item>
+        <item>彩色5</item>
+
+    </String-array>
+</resources>

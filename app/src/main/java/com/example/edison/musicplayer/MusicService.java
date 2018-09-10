@@ -87,6 +87,9 @@ public class MusicService extends Service{
             int command = intent.getIntExtra("command", COMMAND_UNKNOWN);
             //执行命令
             switch (command){
+                case COMMAND_SEEK_TO:
+                    seekTo(intent.getIntExtra("time",0));
+                    break;
                 case COMMAND_PLAY:
                     number = intent.getIntExtra("number", 0);
                     play(number);
@@ -122,6 +125,14 @@ public class MusicService extends Service{
     private void sendBroadcastOnStatusChanged(int status){
         Intent intent = new Intent(BROADCAST_MUSICSERVICE_UPDATE_STATUS);
         intent.putExtra("status",status);
+        if(status != STATUS_STOPPED){
+            intent.putExtra("time", player.getCurrentPosition());
+            intent.putExtra("duration", player.getDuration());
+            intent.putExtra("number", number);
+            intent.putExtra("musicName", MusicList.getMusicList().get(number).getMusicName());
+            intent.putExtra("musicArtist", MusicList.getMusicList().get(number).getMusicArtist());
+
+        }
         sendBroadcast(intent);
     }
 
@@ -207,6 +218,11 @@ public class MusicService extends Service{
         player.start();
         status = MusicService.STATUS_PLAYING;
 
+    }
+
+    /**跳转至播放位置*/
+    private void seekTo(int time){
+        player.seekTo(time);
     }
 
     /**重新播放（播放完成之后）*/
