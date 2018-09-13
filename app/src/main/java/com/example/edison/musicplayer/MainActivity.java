@@ -2,6 +2,7 @@ package com.example.edison.musicplayer;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
@@ -10,7 +11,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.provider.MediaStore;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ImageButton;
@@ -399,6 +403,30 @@ public class MainActivity extends AppCompatActivity {
             stopService(new Intent(this, MusicService.class));
         }
         super.onDestroy();
+    }
+
+    /**创建菜单*/
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu){
+        getMenuInflater().inflate(R.menu.main, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    /**处理菜单点击事件*/
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item){
+        switch (item.getItemId()){
+            case R.id.menu_theme:
+                //显示列表对话框
+                new AlertDialog.Builder(this)
+                        .setTitle("Choose a theme")
+                        .setItems(R.array.theme, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+
+                            }
+                        })
+        }
     }
 
     /**设置Activity的主题，包括改变背景图片等*/
