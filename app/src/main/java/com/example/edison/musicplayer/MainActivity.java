@@ -423,15 +423,44 @@ public class MainActivity extends AppCompatActivity {
                         .setItems(R.array.theme, new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialogInterface, int i) {
-
+                                //获取在array.xml中定义的主题名称
+                                    //String[] themes = MainActivity.this.getResources().getStringArray(R.array.theme);
+                                String theme = PropertyBean.THEMES[i];
+                                //设置Activity的主题
+                                setTheme(theme);
+                                //保存选择的主题
+                                PropertyBean property = new PropertyBean(MainActivity.this);
+                                property.setAndSaveTheme(theme);
                             }
-                        })
+                        }).show();
+                break;
+            case R.id.menu_about:
+                //显示文本对话框
+                new AlertDialog.Builder(MainActivity.this).setTitle("MusicPlayer")
+                        .setMessage(R.string.about2).show();
+                break;
+            case R.id.menu_quit:
+                //退出程序
+                new AlertDialog.Builder(MainActivity.this).setTitle("提示")
+                        .setMessage(R.string.quit_message).setPositiveButton("Sure", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        System.exit(0);
+                    }
+                }).setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+
+                    }
+                }).show();
+                break;
         }
+        return super.onOptionsItemSelected(item);
     }
 
     /**设置Activity的主题，包括改变背景图片等*/
     private void setTheme(String theme){
-        if("彩色".equals(theme)){
+        if("彩色1".equals(theme)){
             root_Layout.setBackgroundResource(R.drawable.color1);
         }else if("彩色2".equals(theme)) {
             root_Layout.setBackgroundResource(R.drawable.color2);
