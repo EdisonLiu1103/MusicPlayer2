@@ -39,8 +39,11 @@ public class MainActivity extends AppCompatActivity {
     private ListView list;
     private TextView text_Current;
     private TextView text_Duration;
+
+    private TextView textView;
     private SeekBar seekBar;
     private RelativeLayout root_Layout;
+
 
     //更新进度条的Handler
     private Handler seekBarHandler;
@@ -103,7 +106,10 @@ public class MainActivity extends AppCompatActivity {
         seekBar = (SeekBar)findViewById(R.id.seekBar1);
         text_Current = (TextView)findViewById(R.id.tv1);
         text_Duration = (TextView)findViewById(R.id.tv2);
+
+        textView = (TextView)findViewById(R.id.textView);
         root_Layout = (RelativeLayout)findViewById(R.id.relativeLayout1);
+
     }
 
     private void registerListeners()
@@ -356,8 +362,13 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent){
             //获取播放器状态
             status = intent.getIntExtra("status", -1);
+            //在Activity的标题栏中显示当前正在播放的音乐及艺术及
+            String musicName = intent.getStringExtra("musicName");
+            String musicArtist = intent.getStringExtra("musicArtist");
             switch(status){
                 case MusicService.STATUS_PLAYING:
+
+
                     seekBarHandler.removeMessages(PROGRESS_INCREASE);
                     time = intent.getIntExtra("time", 0);
                     duration = intent.getIntExtra("duration", 0);
@@ -368,16 +379,27 @@ public class MainActivity extends AppCompatActivity {
                     seekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000);
                     text_Duration.setText(formatTime(duration));
                     Play_btn.setBackgroundResource(R.drawable.pause);
+
+                    //设置Activity的标题栏文字，提示正在播放的歌曲
+                    textView.setText(musicArtist + " - " + musicName);
+                    //MainActivity.this.setTitle("正在播放" + musicName + "" + musicArtist);
+
                     break;
                 case MusicService.STATUS_PAUSED:
                     seekBarHandler.sendEmptyMessage(PROGRESS_PAUSE);
+                    /**String string = MainActivity.this.getTitle().toString().replace("正在播放","已暂停");
+                    MainActivity.this.setTitle(string);**/
                     Play_btn.setBackgroundResource(R.drawable.play);
+                    //设置textView文字，提示已经播放的歌曲
+                    textView.setText(musicArtist + " - " + musicName);
                 case MusicService.STATUS_STOPPED:
                     time = 0;
                     duration = 0;
                     text_Current.setText(formatTime(time));
                     text_Duration.setText(formatTime(duration));
                     seekBarHandler.sendEmptyMessage(PROGRESS_RESET);
+                    textView.setText("");
+                    MainActivity.this.setTitle("MusicPlayer");
                     Play_btn.setBackgroundResource(R.drawable.play);
                     break;
                 case MusicService.STATUS_COMPLETED:
@@ -388,6 +410,8 @@ public class MainActivity extends AppCompatActivity {
                         sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
                     seekBarHandler.sendEmptyMessage(PROGRESS_RESET);
                     //sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                    //MainActivity.this.setTitle("MusicPlayer");
+                    textView.setText("");
                     Play_btn.setBackgroundResource(R.drawable.play);
                     break;
                 default:

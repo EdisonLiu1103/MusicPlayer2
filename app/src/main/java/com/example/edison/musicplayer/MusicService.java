@@ -8,6 +8,8 @@ import android.content.IntentFilter;
 import android.media.MediaPlayer;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
+import android.telephony.PhoneStateListener;
+import android.telephony.TelephonyManager;
 import android.widget.Toast;
 
 public class MusicService extends Service{
@@ -38,6 +40,8 @@ public class MusicService extends Service{
     private int number = 0;
     private int status;
 
+    private boolean phone = false;
+
    @Override
    public void onCreate(){
        super.onCreate();
@@ -45,6 +49,28 @@ public class MusicService extends Service{
        bindCommandReceiver();
        //Toast.makeText(this, "MusicService.onCreate()", Toast.LENGTH_SHORT).show();
        status = MusicService.STATUS_STOPPED;
+       TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+       telephonyManager.listen(new MyPhoneListener(), PhoneStateListener.LISTEN_CALL_STATE);
+   }
+
+   private final class MyPhoneListener extends PhoneStateListener{
+
+       public void oncallStateChanged(int state, String incomingNumber){
+           switch (state){
+               case TelephonyManager.CALL_STATE_RINGING:
+                   if(status == MusicService.STATUS_PLAYING){
+                       pause();
+                       phone = true;
+                   }
+                   break;
+               case TelephonyManager.CALL_STATE_IDLE:
+                   if(phone == true){
+                       resume();
+                       phone = false;
+                   }
+                   break;
+           }
+       }
    }
 
 
