@@ -6,6 +6,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
@@ -13,15 +14,19 @@ import android.os.Message;
 import android.provider.MediaStore;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.CompoundButton;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.SimpleAdapter;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -29,6 +34,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -57,8 +64,21 @@ public class MainActivity extends AppCompatActivity {
     private static final int PROGRESS_PAUSE = 1;
     private static final int PROGRESS_RESET = 2;
 
+    //播放模式常量
+    private static final int MODE_LIST_SEQUENCE = 0;
+    private static final int MODE_SINGLE_CYCLE = 1;
+    private static final int MODE_LIST_CYCLE = 2;
+    private int playmode;
+
     //歌曲列表对象
     private ArrayList<Music> musicArrayList;
+
+    //退出判断标记
+    private static Boolean isExit = false;
+
+    //音量控制
+    private TextView tv_vol;
+    private SeekBar seekbar_vol;
 
     //当前歌曲的序号，下标从0开始
     private int number = 0;
@@ -68,6 +88,17 @@ public class MainActivity extends AppCompatActivity {
 
     //广播接收器
     private StatusChangedReceiver receiver;
+
+    //睡眠模式相关组件，标识常量
+    private ImageView iv_sleep;
+    private Timer timer_sleep;
+    private static final boolean NOTSLEEP = false;
+    private static final boolean ISSLEEP = true;
+
+    //默认的睡眠时间
+    private int sleepminute = 20;
+    //标记是否打开了睡眠模式
+    private static boolean sleepmode;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -82,10 +113,19 @@ public class MainActivity extends AppCompatActivity {
         time = 0;
         //绑定广播接收器，可以接收广播
         bindStatusChangedReceiver();
+        sendBroadcastOnCommand(MusicService.COMMAND_CHECK_IS_PLAYING);
         initSeekBarHandler();
         startService(new Intent(this, MusicService.class));
         status = MusicService.COMMAND_STOP;
+
+        //默认播放模式是顺序播放
+        playmode = MainActivity.MODE_LIST_SEQUENCE;
+
+        //默认睡眠模式是关闭状态
+        sleepmode = MainActivity.NOTSLEEP;
     }
+
+
 
     /**绑定广播接收器*/
     private void bindStatusChangedReceiver(){
@@ -110,8 +150,14 @@ public class MainActivity extends AppCompatActivity {
         textView = (TextView)findViewById(R.id.textView);
         root_Layout = (RelativeLayout)findViewById(R.id.relativeLayout1);
 
+        tv_vol = (TextView)findViewById(R.id.main_tv_volumText);
+        seekbar_vol = (SeekBar)findViewById(R.id.main_sb_volumbar);
+
+        iv_sleep = (ImageView)findViewById(R.id.main_iv_sleep);
+
     }
 
+    /*为显示组件注册监听器*/
     private void registerListeners()
     {
         Pre_btn.setOnClickListener(new View.OnClickListener() {
@@ -164,10 +210,23 @@ public class MainActivity extends AppCompatActivity {
         Next_btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                moveNumberToNext();
-                /*play(number);
-                Play_btn.setBackgroundResource(R.drawable.play);*/
-                sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+               /* moveNumberToNext();
+                play(number);
+                Play_btn.setBackgroundResource(R.drawable.play);
+                sendBroadcastOnCommand(MusicService.COMMAND_NEXT);*/
+               if(playmode == MainActivity.MODE_LIST_CYCLE){
+                   if(number == musicArrayList.size()-1){
+                       number = 0;
+                       sendBroadcastOnCommand(MusicService.COMMAND_PLAY);
+                   }
+                   else
+                   {
+                       sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                   }
+               }
+               else {
+                   sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+               }
             }
         });
 
@@ -282,12 +341,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    @Override
-    protected void onResume() {
 
-        super.onResume();
-        sendBroadcastOnCommand(MusicService.COMMAND_CHECK_IS_PLAYING);
-    }
 
     private void initSeekBarHandler(){
         seekBarHandler = new Handler(){
@@ -411,6 +465,23 @@ public class MainActivity extends AppCompatActivity {
                     seekBarHandler.sendEmptyMessage(PROGRESS_RESET);
                     //sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
                     //MainActivity.this.setTitle("MusicPlayer");
+
+                    number = intent.getIntExtra("number", 0);
+                    if(playmode == MainActivity.MODE_LIST_SEQUENCE)         //顺序模式：到达列表末端时发送停止命令，否则播放下一首
+                    {
+                        if(number == MusicList.getMusicList().size()-1)
+                            sendBroadcastOnCommand(MusicService.STATUS_STOPPED);
+                        else
+                            sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                    }
+                    else if(playmode == MainActivity.MODE_SINGLE_CYCLE)       //单曲循环
+                            sendBroadcastOnCommand(MusicService.COMMAND_PLAY);
+                    else if(playmode == MainActivity.MODE_LIST_CYCLE){        //列表循环：到达列表末端时，把要播放的音乐设置为第一首，然后发送播放命令
+                        if(number == musicArrayList.size()-1){
+                            number = 0;
+                            sendBroadcastOnCommand(MusicService.COMMAND_PLAY);
+                        }else sendBroadcastOnCommand(MusicService.COMMAND_NEXT);
+                    }
                     textView.setText("");
                     Play_btn.setBackgroundResource(R.drawable.play);
                     break;
@@ -420,6 +491,25 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+    @Override
+    protected void onResume() {
+
+        super.onResume();
+
+        //检查播放器是否正在播放，如果正在播放，以上绑定的接收器会改变UI
+        sendBroadcastOnCommand(MusicService.COMMAND_CHECK_IS_PLAYING);
+        PropertyBean property = new PropertyBean(MainActivity.this);
+        String theme = property.getTheme();
+
+        //设置Activity的主题
+        setTheme(theme);
+        audio_Control();
+
+        //睡眠模式打开时显示图标，关闭时隐藏图标
+        if(sleepmode == MainActivity.ISSLEEP)iv_sleep.setVisibility(View.VISIBLE);
+        else iv_sleep.setVisibility(View.INVISIBLE);
+    }
 
     @Override
     protected void onDestroy(){
@@ -463,6 +553,37 @@ public class MainActivity extends AppCompatActivity {
                 new AlertDialog.Builder(MainActivity.this).setTitle("MusicPlayer")
                         .setMessage(R.string.about2).show();
                 break;
+
+            case R.id.menu_playmode:
+                String[] mode = new String[]{"顺序播放","单曲循环","列表循环"};
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setTitle("播放模式");
+                builder.setSingleChoiceItems(mode, playmode, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        playmode = i;
+                    }
+                });
+                builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        switch(playmode){
+                            case 0:
+                                playmode = MainActivity.MODE_LIST_SEQUENCE;
+                                Toast.makeText(getApplicationContext(), R.string.sequence, Toast.LENGTH_SHORT).show();
+                            case 1:
+                                playmode = MainActivity.MODE_LIST_CYCLE;
+                                Toast.makeText(getApplicationContext(), R.string.listcycle, Toast.LENGTH_SHORT).show();
+                            case 2:
+                                playmode = MainActivity.MODE_SINGLE_CYCLE;
+                                Toast.makeText(getApplicationContext(), R.string.singlecycle, Toast.LENGTH_SHORT).show();
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                });
+
             case R.id.menu_quit:
                 //退出程序
                 new AlertDialog.Builder(MainActivity.this).setTitle("提示")
@@ -478,8 +599,184 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }).show();
                 break;
+
+            case R.id.menu_sleep:
+                showSleepDialog();
+                break;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    //重写onKeyDown方法
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event){
+       int progress;
+        switch (keyCode){
+            case KeyEvent.KEYCODE_BACK:
+                exitByDoubleClick();
+                break;
+
+            case KeyEvent.KEYCODE_VOLUME_DOWN:
+                progress = seekbar_vol.getProgress();
+                if(progress != 0)
+                    seekbar_vol.setProgress(progress-1);
+                return true;
+            case KeyEvent.KEYCODE_VOLUME_UP:
+                progress = seekbar_vol.getProgress();
+                if(progress != 0)
+                    seekbar_vol.setProgress(progress + 1);
+                return true;
+            default:
+                break;
+        }
+        return false;
+    }
+
+    private void exitByDoubleClick(){
+        Timer timer = null;
+        if(isExit == false){
+            isExit = true;      //准备退出
+            Toast.makeText(this, "再按一次退出程序！", Toast.LENGTH_SHORT).show();
+            timer = new Timer();
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    isExit = false;
+                }
+            },2000);        //2秒后会执行 run函数的内容，如果2秒内没有按下返回键，则启动定时器自改isExit的值
+        }else
+        {
+            System.exit(0);
+        }
+    }
+
+    //编写诶audio——Control方法
+    private void audio_Control()
+    {
+        //获取音量管理器
+        final AudioManager audioManager = (AudioManager)this.getSystemService(Context.AUDIO_SERVICE);
+        //设置当前调整音量大小只是针对媒体音乐
+        this.setVolumeControlStream(AudioManager.STREAM_MUSIC);
+        //设置滑动条最大值
+        final int max_progress = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        seekbar_vol.setMax(max_progress);
+        //获取当前音量
+        int progress = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        seekbar_vol.setProgress(progress);
+        tv_vol.setText("音量：" + (progress*100/max_progress) + "%");
+        seekbar_vol.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                tv_vol.setText("音量：" + (i*100)/(max_progress) + "%");
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, i, AudioManager.FLAG_PLAY_SOUND);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
+    }
+
+
+    private void showSleepDialog(){
+        //先用getLayoutInflate().inflate来获取布局，用来获取一个View类对象
+        final View userView = this.getLayoutInflater().inflate(R.layout.dialog, null);
+
+        //通过View类的findViewByID放来来获取到相关组件对象
+        final TextView tv_minute = (TextView)userView.findViewById(R.id.dialog_tv);
+        final Switch switch1 = (Switch)userView.findViewById(R.id.dialog_switch);
+        final SeekBar seekbar = (SeekBar)userView.findViewById(R.id.dialog_seekbar);
+
+        tv_minute.setText("睡眠于：" + sleepminute + "分钟");
+        //根据当前的睡眠状态来确定switch额状态
+        if(sleepmode == MainActivity.ISSLEEP)switch1.setChecked(true);
+        seekbar.setMax(60);
+        seekbar.setProgress(sleepminute);
+        seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                sleepminute = i;
+                tv_minute.setText("睡眠于" + sleepminute + "分钟");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
+        switch1.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                sleepmode = b;
+            }
+        });
+        //定义定时任务
+        final TimerTask timerTask = new TimerTask() {
+            @Override
+            public void run() {
+                System.exit(0);
+            }
+        };
+
+        //定义对话框以及初始化
+        final AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        dialog.setTitle("选择睡眠时间（0--60min");
+        //设置布局
+        dialog.setView(userView);
+        //设置取消按钮响应事件
+        dialog.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                dialogInterface.dismiss();
+            }
+        });
+        //设置重置按钮响应事件
+        dialog.setNeutralButton("重置", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                if(sleepmode == MainActivity.ISSLEEP)
+                {
+                    timerTask.cancel();
+                    timer_sleep.cancel();
+                }
+                sleepmode = MainActivity.NOTSLEEP;
+                sleepminute = 20;
+                iv_sleep.setVisibility(View.INVISIBLE);
+            }
+        });
+        //设置确定按钮响应事件
+        dialog.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                if(sleepmode == MainActivity.ISSLEEP){
+                    timer_sleep = new Timer();
+                    int time = seekbar.getProgress();
+                    //启动任务，time*60*1000毫秒后执行
+                    timer_sleep.schedule(timerTask, time*60*1000);
+                    iv_sleep.setVisibility(View.VISIBLE);
+                }
+                else
+                {
+                    //取消任务
+                    timerTask.cancel();
+                    if(timer_sleep != null) timer_sleep.cancel();
+                    dialogInterface.dismiss();
+                    iv_sleep.setVisibility(View.INVISIBLE);
+                }
+            }
+        });
+        dialog.show();
     }
 
     /**设置Activity的主题，包括改变背景图片等*/

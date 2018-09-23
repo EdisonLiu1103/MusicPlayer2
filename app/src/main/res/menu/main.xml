@@ -13,6 +13,19 @@
           android:title="@string/about"
         />
 
+    <item android:id="@+id/menu_sleep"
+        android:orderInCategory="100"
+        app:showAsAction="never"
+        android:title="睡眠设置">
+
+    </item>
+
+    <item android:id="@+id/menu_playmode"
+          android:orderInCategory="100"
+          app:showAsAction="never"
+          android:title="@string/playmode"
+        />
+
     <item android:id="@+id/menu_quit"
           android:orderInCategory="100"
           app:showAsAction="never"

@@ -11,4 +11,10 @@
     <string name="quit">退出</string>
     <string name="quit_message">Sure to quit?</string>
 
+    <string name="playmode">播放模式</string>
+    <string name="sequence">顺序播放</string>
+    <string name="listcycle">列表循环</string>
+    <string name="singlecycle">单曲循环</string>
+
+    <String name="sleep">睡眠设置</String>
 </resources>

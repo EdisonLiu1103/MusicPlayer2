@@ -6,16 +6,42 @@
               android:orientation="vertical"
               android:id="@+id/relativeLayout1"
               >
-
+    <LinearLayout
+        android:id="@+id/main_volumLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/main_tv_volumText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:layout_weight="1"
+            android:gravity="right"
+            android:text="音量：100%"
+            android:textColor="#ffffffff"
+            android:textSize="15dp"/>
+        <SeekBar
+            android:id="@+id/main_sb_volumbar"
+            android:layout_width="82dp"
+            android:layout_height="wrap_content"
+            android:maxHeight="5dip"
+            android:maxWidth="5dip"
+            android:progressDrawable="@drawable/seekbar"
+            android:thumb="@drawable/seekbar"/>
+    </LinearLayout>
     <ListView
         android:id="@+id/listView1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
         android:layout_above="@+id/linea1"
+        android:layout_below="@+id/main_volumLayout"
         android:layout_margin="10dip"
         android:background="@drawable/bg1"
         android:cacheColorHint="#000000"
+        android:fastScrollEnabled="true"
         >
 
     </ListView>
@@ -76,6 +102,19 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:id="@+id/relativeLayout2">
+
+            <TextView
+                android:id="@+id/main_tv_curtime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:text="00:00"/>
+            <ImageView
+                android:id="@+id/main_iv_sleep"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="5dp"
+                android:src="@drawable/sleep_timer"/>
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
